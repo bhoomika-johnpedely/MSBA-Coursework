@@ -1,0 +1,90 @@
+---
+title: "Financial_Penalized_Regression"
+author: "Bhoomika John Pedely"
+date: "2023-08-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This is a mini-project inspired by the 'Business Decision Algorithm' class during my MSBA program. I will be using a penalized regression technique (LASSO) to find the best predictors of bankcruptcy and determine whether the given business will go bankrupt or not.
+
+```{r}
+#Loading the data
+library(ROCR)
+library(glmnet)
+
+trainData <- read.csv(url("http://data.mishra.us/files/train_bankruptcy.csv"))
+testData <- read.csv(url("http://data.mishra.us/files/test_bankruptcy.csv"))
+
+predictors <- trainData[,c(1:16)]
+bankruptcy <- trainData$class
+```
+
+```{r}
+#Determing correlation between predictors
+library(psycho)
+library(tidyverse)
+
+correl <- cor(trainData[,-17])
+ggcorrplot::ggcorrplot(correl,hc.order=TRUE, type="lower",lab=TRUE)
+```
+The correlation plot shows that many of these financial ratios are correlated. 
+
+```{r}
+predictors <-data.matrix(predictors)
+set.seed(1287994)
+
+cv.binomial <- cv.glmnet(x = predictors, y = as.factor(bankruptcy),
+alpha=1, family="binomial",
+nfolds=4, standardize = TRUE, type.measure = "auc")
+
+plot(cv.binomial)
+```
+```{r}
+(best.lambda <- cv.binomial$lambda.min) #What is the optimal value of λ?
+
+y4<- coef(cv.binomial, s="lambda.min", exact=FALSE)
+print(y4)
+
+#The model has shrunk 4 predictors to zero and used the rest in its modelling
+```
+```{r}
+#Using optimal value of lambda and seeing how well it performs on a separate data set
+test_predictors <- testData[,c(1:16)]
+test_predictors <- data.matrix(test_predictors)
+
+pred = predict(cv.binomial, newx = test_predictors, type = "response", s ="lambda.min")
+
+pred <- prediction(pred, testData$class)
+
+perf <- performance(pred,"tpr","fpr")
+auc_ROCR<- performance(pred,measure ="auc")
+```
+
+```{r}
+plot(perf,colorize=FALSE, col="black") # plot ROC curve
+lines(c(0,1),c(0,1),col = "gray", lty = 4 )
+text(1,0.15,labels=paste("AUC = ",round(auc_ROCR@y.values[[1]],
+digits=2),sep=""),adj=1)
+
+#Higher AUC is better. It is the ratio of true positives to false positives. 0.5 AUC means that the models follows random probability and does not add any more explainability to the data. 
+```
+
+```{r}
+#We enter this data about the business as new_data. Since for glmnet the data has to be in the form of a matrix, we convert it to a matrix with one row (nrow =1) and sixteen columns (ncol = 16). For the predict function, we use type = class so that the output is in the form of a class (will face bankruptcy = 0 versus will not face bankruptcy =1) with the highest predicted probability.
+
+new_data = c(1.65,0.85, 1.79, 17.31,0.084,22.81,0.269,.517,0.179,0.205,
+1.75,0.198,0.09,1.27,0.75,0.075)
+
+new_data <- matrix(new_data, nrow = 1, ncol = 16, byrow = TRUE)
+
+pred = predict(cv.binomial, newx = new_data, type = "class", s ="lambda.min")
+
+pred
+
+#The model has predicted that this business will ultimately go bankrupt.
+```
+

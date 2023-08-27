@@ -1,0 +1,159 @@
+---
+title: "Forecasting_Regression"
+author: "Bhoomika John Pedely"
+date: "2023-08-21"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This is a mini-project inspired by the 'Business Decision Algorithm' class during my MSBA program. I am solving a forecasting problem where I will be using a multiple regression model to predict the outcome, Gas Demand.
+
+The data can be accessed at the given url: "<http://data.mishra.us/files/utah_idaho_gas.csv>".
+
+#### Loading the data
+
+```{r}
+gas_data <- read.csv(url("http://data.mishra.us/files/utah_idaho_gas.csv"))
+```
+
+### Explanatory Analytics
+
+#### Exploring the data
+
+```{r}
+str(gas_data)
+```
+
+```{r}
+summary(gas_data)
+```
+
+```{r}
+head(gas_data)
+```
+
+#### Univariate Linear Regression Model: gasoline_demand \~ unemployment
+
+Visualizing the influence of unemployment rate on gasoline demand by first drawing a scatter plot between unemployment rate and gasoline demand. Then, drawing the line of best fit through the scatter plot.
+
+```{r}
+fit <- lm(gasoline_demand~unemployment, data=gas_data)
+plot(gas_data$unemployment, gas_data$gasoline_demand,xlab="Unemployment",
+ylab="Gas Demand")
+abline(fit)
+```
+
+```{r}
+library(effects)
+allEffects.fit <- allEffects(fit)
+plot(allEffects.fit)
+```
+
+```{r}
+summary(fit)
+```
+
+The coefficient estimate of the predictor unemployment is -0.02757. This means that when unemployment rate falls by 1 unit, gasoline demand increases by 0.02 unit (here the unit of consumption is barrels per capita per quarter).
+
+The t-statistic -0.89 and the p-value 0.372 indicates that unemployment rate does not have a significant influence on gasoline demand.
+
+```{r}
+#Checking if the assumption that residuals are distributed normally is true with this dataset. A means of residuals closer to 0 would suggest that it is. 
+mean(fit$residuals)
+```
+
+The output shows a number virtually equal to 0. Hence, the residuals are distributed normally, making linear regression a suitable model for this task.
+
+```{r}
+#Checking for homoscedasticity
+par(mfrow=c(2, 2))
+plot(fit)
+```
+
+```{r}
+#Checking for autocorrelation using Durbin Watson test. Values between 0 and 2 indicate positive correlation and between 2 and 4 indicate negative correlation.
+lmtest::dwtest(fit)
+```
+
+#### Linear Multiple Regression
+
+Influence of disposable income per capita (in dollars), population, and total investment by state and federal fuel tax rate, state unemployment rate, federal government in state's public transit and gasoline prices as the predictor variables on gas demand.
+
+```{r}
+fit.multiple <- (lm(gasoline_demand~federal_tax+price+unemployment+percapita_income+
+population+public_transport_fund+lag_demand, data=gas_data))
+
+summary(fit.multiple)
+```
+
+#### Strategic Insights
+
+-   Considering the Pr(\>\|t\|), predictors that have a significant influence on the gasoline demand are:
+
+    -   Unemployment rate
+
+    -   population
+
+    -   public transport
+
+    -   lagged demand
+
+-   An Interesting note is that price is not one of these predictors.
+
+-   Unemployment and public transport have a negative effect.
+
+-   Population and lagged demand have a positive effect.
+
+-   Multiple R2 = 0.36 means that 36% of the variance is explained by this set of predictors.
+
+### Predictive Analytics
+
+```{r}
+library(caret)
+```
+
+```{r}
+macro <- gas_data
+
+#Looking at each predictor individually
+featurePlot(x=macro[,6:12], y=macro[,5])
+```
+
+```{r}
+#Splitting the data
+set.seed(1234)
+datasplit <- createDataPartition(macro$gasoline_demand, p = 0.7,list=FALSE)
+trainData <- macro[datasplit,]
+testData <- macro[-datasplit,]
+```
+
+```{r}
+#Training the model
+lmregression <- train(gasoline_demand ~ federal_tax+price+unemployment+
+percapita_income+ population+public_transport_fund
++lag_demand, data = trainData, method = "lm",
+na.action=na.exclude)
+summary(lmregression)
+```
+
+```{r}
+#Predicting and measuring performance on test
+predictions <-predict(lmregression, newdata=testData)
+postResample(predictions, testData$gasoline_demand)
+```
+
+RMSE is given in terms of the units of the outcome, which is gasoline_demand. Since, gasoline_demand ranges from 3 to 5, 0.29 is a good RMSE. The lower, the better.
+
+```{r}
+#Checking for multicolliniearity among all the predictor variables using Variance Inflation Factor, VIF. 
+fit_3 <- lm(gasoline_demand~federal_tax+price+unemployment+percapita_income+
+population+public_transport_fund+lag_demand, data=gas_data)
+car::vif(fit_3)
+```
+
+VIF values of less than 5 are considered fine.
