@@ -1,0 +1,102 @@
+---
+title: "Segmnetation and Clustering"
+author: "Bhoomika John Pedely"
+date: "2023-09-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This is a mini-project inspired by the 'Business Decision Algorithm' class during my MSBA program. I will be using a unsupervised clustering algorithm to create customer segments of 50 customers, based on 2 variables, 'deal proneness' and 'frequency of purchase'.
+
+```{r}
+#Loading the data
+library(gplots)
+library(RColorBrewer)
+library(dendextend)
+library(circlize)
+library(NbClust)
+
+dataC <- read.csv("http://data.mishra.us/files/dataClust.csv")
+
+#scatter plot for exploration
+plot(dataC$deal, dataC$frequency, xlab="Deal proneness",
+ylab="Frequency of purchase")
+```
+The scatterplot doesn't show any linear relationship between the two variables of interest. Next, I will be looking at dendograms made using 4 different types of linkages. 
+
+```{r}
+d <- dist(dataC, method = "euclidean")
+
+fit.w <- hclust(d,method="ward.D2")
+plot(fit.w, main = "Ward Linkage", xlab = "Observations", ylab = "Height", cex = .6)
+```
+```{r}
+fit.c <- hclust(d,method="complete")
+
+plot(fit.c, main = "CompleteLinkage", xlab = "Observations", ylab = "Height", cex = .6)
+13
+```
+```{r}
+fit.s <- hclust(d,method="single")
+
+plot(fit.s, main = "Single Linkage", xlab = "Observations", ylab = "Height", cex = .6)
+```
+```{r}
+fit.a <- hclust(d,method="average")
+
+plot(fit.a, main = "Average Linkage", xlab = "Observations", ylab = "Height", cex = .6)
+```
+Evaluating Cophenetic correlation coefficient for all the types of linkages. 
+```{r}
+(d.coph <- cophenetic(fit.w)) # ward linkage
+cor(d, d.coph) # 0.6645585
+(d.coph <- cophenetic(fit.c)) # complete linkage
+cor(d, d.coph) # 0.65408
+(d.coph <- cophenetic(fit.s)) # single linkage
+cor(d, d.coph) # 0.444397
+(d.coph <- cophenetic(fit.a)) # average linkage
+cor(d, d.coph) #0.741388
+```
+```{r}
+cutree(fit.c, 3)
+```
+```{r}
+cutree(fit.s, 3)
+```
+```{r}
+cutree(fit.w, 3)
+```
+How many clusters to segment customers into?
+```{r}
+res<-NbClust(dataC, distance = "euclidean", min.nc=2, max.nc=8,
+method = "ward.D2", index = "all")
+```
+The Hubert index is a graphical method of determining the number of clusters. In the plot of Hubert index, we seek a significant knee that corresponds to a significant increase of the value of the measure i.e the significant peak in index second differences plot.
+
+The D index is a graphical method of determining the number of clusters. In the plot of D index, we seek a significant knee (the significant peak in Dindex second differences plot) that corresponds to a significant increase of the value the measure.
+
+Heatmap
+
+Assuming that deal proneness and frequency of visit convey information about customers that can be used by the store, what type of insights can
+be drawn? 
+
+Would we expect deal prone customers to visit the store more frequently or
+would we expect to see the opposite pattern of results? 
+
+Does a customer who has a high value (green color) on deal proneness also have a high value of frequency of visits? If yes, then what can we infer about these customers?
+
+```{r}
+my_palette <- colorRampPalette(c('red','yellow','green'))(256)
+heatmap.2(as.matrix(dataC),
+cexRow=0.5,
+cexCol=1.1,
+col = my_palette,
+sepcolor="black",
+sepwidth=c(0.01,0.01),
+scale="none",
+trace="none")
+```
+
