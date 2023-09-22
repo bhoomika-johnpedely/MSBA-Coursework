@@ -1,0 +1,88 @@
+---
+title: "Using Neural Nets for Customer Churn"
+author: "Bhoomika John Pedely"
+date: "2023-09-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This is a mini-project inspired by the 'Business Decision Algorithm' class during my MSBA program. I will be predicting costumer drop-off using Neural Net. 
+
+```{r}
+#Loading Packages
+library(caret)
+library(mlbench)
+library(doParallel)
+registerDoParallel(cores = 4)
+```
+```{r}
+#Loading Data and Setting Seed
+churn <- read.csv(url("http://data.mishra.us/files/churn_chapter/customer_churn.csv"))
+set.seed(123456)
+churn
+churn <- churn[,-c(1,2)] #Removing variables state and area_code
+```
+```{r}
+#Splitting the data into train and test sets
+inTrain <- createDataPartition(churn$churn, p = .8, list=FALSE)
+train <- churn[c(inTrain),]
+test <- churn[-inTrain,]
+```
+
+```{r}
+#Separating Input and Output Variables
+train_predictor <- train[,-18]
+train_outcome <- train [,18]
+train_outcome <- ifelse(train_outcome == 0, "no", "yes")
+
+test_predictor <- test[,-18]
+test_outcome <- test [,18]
+test_outcome <- ifelse(test_outcome == 0, "no", "yes")
+```
+
+```{r}
+#Cross-validation
+ctrl <- trainControl(method = "repeatedcv", # cross-validation
+number = 5, # 5 folds
+repeats = 5,
+classProbs = TRUE # report class probability
+)
+```
+
+```{r}
+#Specifying paramenters decay and size
+avnnetGrid <- expand.grid(decay = c(.001,.005),
+size = c(15:35),
+bag = FALSE
+)
+```
+
+```{r}
+avnnet_fit <- train(train_predictor, train_outcome,
+                    method = "avNNet",
+                    tuneGrid = avnnetGrid,
+                    trControl = ctrl,
+                    softmax = TRUE,
+                    preProc = c("center", "scale"),
+                    trace = FALSE,
+                    metric= "Accuracy",
+                    allowParallel=TRUE,
+                    maxit = 50)
+```
+
+```{r}
+plot(avnnet_fit)
+```
+The model with decay = 0.001 and size = 24 has the highest accuracy.
+```{r}
+predicted_outcome <- predict(avnnet_fit, test_predictor)
+postResample(pred = factor(predicted_outcome), obs = factor(test_outcome))
+```
+```{r}
+confusionMatrix(data = factor(predicted_outcome),
+reference = factor(test_outcome))$table
+```
+
